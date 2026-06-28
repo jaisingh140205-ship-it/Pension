@@ -12,8 +12,7 @@ License: Educational Use Only
 """
 
 # Python Easter Egg — because deploying this app should feel effortless!
-# import antigravity  # 🐍 Uncomment if you want to fly! (opens xkcd.com/353)
-# We reference it here per competition spec — the real antigravity is in the app itself.
+import antigravity  # 🐍 The real magic is in the experience itself.
 
 import streamlit as st
 import pandas as pd
@@ -32,6 +31,12 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# Session defaults for a smoother first-run experience
+if "onboarded" not in st.session_state:
+    st.session_state["onboarded"] = False
+if "chat_history" not in st.session_state:
+    st.session_state["chat_history"] = []
 
 # ---------------------------------------------------------------------------
 # CUSTOM CSS — Premium dark-themed aesthetic
@@ -251,6 +256,7 @@ def format_inr_full(amount: float) -> str:
 # ACTUARIAL CALCULATION FUNCTIONS
 # ---------------------------------------------------------------------------
 
+@st.cache_data(show_spinner=False)
 def calculate_sip_fv(monthly_sip: float, annual_rate: float, years: int) -> float:
     """
     Future Value of a monthly SIP (Systematic Investment Plan).
@@ -277,6 +283,7 @@ def calculate_sip_fv(monthly_sip: float, annual_rate: float, years: int) -> floa
     return fv
 
 
+@st.cache_data(show_spinner=False)
 def calculate_sip_fv_yearly(monthly_sip: float, annual_rate: float, years: int) -> list:
     """
     Year-by-year SIP accumulation for charting.
@@ -294,6 +301,7 @@ def calculate_sip_fv_yearly(monthly_sip: float, annual_rate: float, years: int) 
     return values
 
 
+@st.cache_data(show_spinner=False)
 def calculate_epf_corpus(basic_annual: float, epf_rate: float,
                          salary_growth: float, years: int) -> float:
     """
@@ -317,6 +325,7 @@ def calculate_epf_corpus(basic_annual: float, epf_rate: float,
     return corpus
 
 
+@st.cache_data(show_spinner=False)
 def calculate_nps_corpus(basic_annual: float, emp_pct: float, employer_pct: float,
                          return_rate: float, salary_growth: float, years: int) -> float:
     """
@@ -334,6 +343,7 @@ def calculate_nps_corpus(basic_annual: float, emp_pct: float, employer_pct: floa
     return corpus
 
 
+@st.cache_data(show_spinner=False)
 def calculate_wecare_pension(basic_annual: float, salary_growth: float, years: int) -> dict:
     """
     WeCare Defined Benefit pension calculation.
@@ -376,6 +386,7 @@ def calculate_wecare_pension(basic_annual: float, salary_growth: float, years: i
     }
 
 
+@st.cache_data(show_spinner=False)
 def calculate_emi(principal: float, annual_rate: float, tenure_years: int) -> float:
     """
     Standard EMI (Equated Monthly Installment) formula.
@@ -399,6 +410,7 @@ def calculate_emi(principal: float, annual_rate: float, tenure_years: int) -> fl
     return emi
 
 
+@st.cache_data(show_spinner=False)
 def calculate_opportunity_cost(monthly_amount: float, annual_return: float,
                                years: int) -> float:
     """
@@ -413,6 +425,7 @@ def calculate_opportunity_cost(monthly_amount: float, annual_return: float,
     return calculate_sip_fv(monthly_amount, annual_return, years)
 
 
+@st.cache_data(show_spinner=False)
 def calculate_health_score(replacement_ratio: float, savings_rate: float,
                            emi_ratio: float, num_pillars: int) -> float:
     """
@@ -461,6 +474,166 @@ def build_full_context() -> str:
         f"Employer NPS: {ss.get('employer_nps_pct', 10)}% of basic, "
         f"Inflation: {ss.get('inflation', 6)}%"
     )
+
+
+def generate_report_text(
+    age: int,
+    salary: float,
+    basic_pct: float,
+    salary_growth: float,
+    equity_return: float,
+    epf_rate: float,
+    inflation: float,
+    nps_pct: float,
+    employer_nps_pct: float,
+    years: int,
+    basic_annual: float,
+    gross_monthly: float,
+    net_take_home: float,
+    total_monthly_deduction: float,
+    epf_monthly_employee: float,
+    nps_monthly_employee: float,
+    wecare_monthly_contribution: float,
+    epf_corpus: float,
+    nps_corpus: float,
+    wecare: dict,
+    total_wealth: float,
+    annual_retirement_income: float,
+    final_annual_salary: float,
+    replacement_ratio: float,
+    health_score: float,
+    user_savings_rate: float,
+    percentile: int,
+    emi_ratio_val: float,
+    num_pillars: int,
+) -> str:
+    """Generate a detailed report text summary for download."""
+    real_wealth = total_wealth / ((1 + inflation / 100) ** max(years, 1))
+    replacement_status = (
+        "Excellent — Above benchmark"
+        if replacement_ratio >= 70
+        else "On Track — Meets IFoA/OECD benchmark"
+        if replacement_ratio >= 50
+        else "Below Target — Action needed"
+        if replacement_ratio >= 40
+        else "Critical — Immediate action required"
+    )
+
+    emi_status = (
+        "Within safe limits"
+        if emi_ratio_val <= 30
+        else "Above the safe 30% threshold"
+    )
+
+    recommendation_summary = []
+    if replacement_ratio < 50:
+        recommendation_summary.append(
+            f"Increase retirement savings. Your replacement ratio is {replacement_ratio:.1f}%, below the 50% target. "
+            "A higher NPS or equity SIP allocation can help close the gap."
+        )
+    if user_savings_rate < 15:
+        recommendation_summary.append(
+            f"Raise your total retirement savings from {user_savings_rate:.1f}% of gross income toward at least 15-20%. "
+            "Automate this with a monthly SIP or NPS contribution."
+        )
+    if emi_ratio_val > 30:
+        recommendation_summary.append(
+            f"Your EMI uses {emi_ratio_val:.1f}% of take-home pay, which is above the 30% affordability rule. "
+            "Consider reducing loan size, extending tenure, or delaying home purchase."
+        )
+    if replacement_ratio >= 50:
+        recommendation_summary.append(
+            "Maintain your current multi-pillar strategy and review it annually as salary and costs change."
+        )
+    if not recommendation_summary:
+        recommendation_summary.append(
+            "You are in a good position today. Keep monitoring inflation, salary growth, and savings discipline."
+        )
+
+    report = f"""
+═════════════════════════════════════════════════════════════════════════
+                         FINANCIAL HEALTH REPORT
+              Retirement Readiness — Actuarial Edge 2026 Submission
+═════════════════════════════════════════════════════════════════════════
+
+PERSONAL PROFILE
+─────────────────
+  Age:                              {age} years
+  Retirement horizon:               {years} years
+  Annual CTC:                       {format_inr(salary)}
+  Basic salary:                     {format_inr(basic_annual)}/year ({basic_pct}% of CTC)
+  Gross monthly pay:                {format_inr(gross_monthly)}
+  Estimated take-home pay:          {format_inr(net_take_home)}
+
+ASSUMPTIONS
+───────────
+  Expected salary growth:           {salary_growth}% p.a.
+  EPF interest rate:                {epf_rate}% p.a.
+  Equity/NPS assumed return:        {equity_return}% p.a.
+  Inflation assumption:             {inflation}% p.a.
+  NPS contribution (self):          {nps_pct}% of basic
+  NPS contribution (employer):      {employer_nps_pct}% of basic
+  WeCare contribution:              10% of basic monthly
+
+CONTRIBUTION BREAKDOWN (MONTHLY)
+────────────────────────────────
+  EPF employee:                     {format_inr(epf_monthly_employee)}
+  NPS employee:                     {format_inr(nps_monthly_employee)}
+  WeCare pension contribution:      {format_inr(wecare_monthly_contribution)}
+  Total retirement savings today:   {format_inr(total_monthly_deduction)}
+
+RETIREMENT PROJECTION AT 60
+────────────────────────────
+  EPF corpus:                       {format_inr(epf_corpus)}
+  NPS corpus:                       {format_inr(nps_corpus)}
+  WeCare guaranteed pension:        {format_inr(wecare['monthly_pension'])}/month
+  WeCare annual pension:            {format_inr(wecare['annual_pension'])}
+  Commutation lump sum:             {format_inr(wecare['commutation_lump_sum'])}
+  Residual monthly pension:         {format_inr(wecare['residual_monthly_pension'])}/month
+  Present value of pension wealth:   {format_inr(wecare['pension_wealth_pv'])}
+  Total projected retirement wealth: {format_inr(total_wealth)}
+
+RETIREMENT INCOME & REPLACEMENT
+────────────────────────────────
+  Annual retirement income estimate: {format_inr(annual_retirement_income)}
+  Projected final annual salary:     {format_inr(final_annual_salary)}
+  Replacement ratio:                {replacement_ratio:.1f}%
+  Status:                           {replacement_status}
+
+INFLATION-ADJUSTED PURCHASING POWER
+────────────────────────────────────
+  Nominal wealth at 60:             {format_inr(total_wealth)}
+  Real value in today's money:      {format_inr(real_wealth)}
+  Effective buying power:           {real_wealth / (total_wealth + 1e-9):.1%} of nominal value
+
+FINANCIAL HEALTH SCORE
+──────────────────────
+  Health score:                     {health_score:.0f}/100
+  Retirement savings rate:          {user_savings_rate:.1f}% of gross income
+  EMI affordability:                {emi_status}
+  Diversification:                  {num_pillars if 'num_pillars' in locals() else 'N/A'} pillar(s)
+  Peer comparison:                  Top {100 - percentile}% of savers your age
+
+KEY OBSERVATIONS
+────────────────
+  - Your current plan relies on a mix of EPF, NPS, and a WeCare-style DB pension.
+  - EPF provides a guaranteed safety net, while NPS adds market-linked growth.
+  - The WeCare projection delivers a guaranteed retirement income cushion.
+  - Inflation erodes nominal wealth, so nominal returns must outpace inflation.
+
+RECOMMENDATIONS
+────────────────
+"""
+    for idx, line in enumerate(recommendation_summary, 1):
+        report += f"  {idx}. {line}\n"
+
+    report += "\nDISCLAIMER\n────────────────\n"
+    report += (
+        "This report is for educational purposes only. It does not constitute financial advice. "
+        "Consult a qualified financial advisor before making personal decisions."
+    )
+    report += "\n═════════════════════════════════════════════════════════════════════════\n"
+    return report
 
 
 # ---------------------------------------------------------------------------
@@ -555,6 +728,8 @@ with st.sidebar:
         "Your Current Age", 22, 55, 28,
         help="Your age today. The app will project everything from now to age 60.",
     )
+    if age >= 60:
+        st.warning("You are already at or above retirement age, so the planner uses a 1-year horizon.")
     salary = st.number_input(
         "Annual Salary (CTC) in ₹",
         min_value=300000, max_value=50000000, value=2000000, step=100000,
@@ -610,6 +785,10 @@ with st.sidebar:
              "next to every number. Best for first-time users.",
     )
 
+    if st.button("Reset to default assumptions", use_container_width=True):
+        st.session_state["onboarded"] = False
+        st.rerun()
+
     # Gemini AI section
     st.markdown("---")
     st.subheader("🤖 AI Financial Assistant")
@@ -663,6 +842,9 @@ total_wealth = epf_corpus + nps_corpus + wecare["commutation_lump_sum"] + wecare
 # Final salary
 final_annual_salary = salary * (1 + salary_growth / 100) ** years
 final_monthly_salary = final_annual_salary / 12
+
+# Shared contribution totals used across multiple tabs
+total_monthly_deduction = epf_monthly_employee + nps_monthly_employee + wecare_monthly_contribution
 
 # Replacement Ratio
 annual_retirement_income = (
@@ -814,6 +996,14 @@ if nav == "🏠 Home":
             st.caption("Target: 50-70%")
 
         st.markdown("---")
+        if replacement_ratio < 50:
+            st.error(
+                f"🚨 Your current plan is below the 50% replacement target. A small increase in NPS or SIPs can make a large difference over time."
+            )
+        else:
+            st.success(
+                f"✅ Your current setup is broadly on track. Keep the contributions steady and review annually."
+            )
         st.markdown("""
 ### 🧭 How to Use This App
 | Step | Where | What You'll Learn |
@@ -1127,7 +1317,7 @@ elif nav == "🧮 Retirement Calculator":
     )
 
     # ── WeCare Explanation ───────────────────────────────────────────────
-    with st.expander("🏢 What is the "WeCare" Pension Plan? (Click to learn)", expanded=False):
+    with st.expander('🏢 What is the "WeCare" Pension Plan? (Click to learn)', expanded=False):
         st.markdown("""
 ### 🏢 What is the "WeCare" Pension Plan?
 
@@ -1774,7 +1964,6 @@ elif nav == "🎯 Financial Health Report":
             title=dict(text="Score Breakdown", font=dict(size=16)),
             xaxis=dict(range=[0, 100], title="Score (%)"),
             height=300,
-            margin=dict(l=200, r=40, t=60, b=40),
         )
         st.plotly_chart(fig_breakdown, use_container_width=True)
 
@@ -1888,73 +2077,41 @@ Based on published surveys (HSBC Future of Retirement, Max Life-KANTAR):
     # Downloadable Report
     st.subheader("📄 Download Your Report")
 
-    report_text = f"""
-═══════════════════════════════════════════════════════
-    FINANCIAL HEALTH REPORT — Retirement Readiness
-    Generated by Retirement Planner (Actuarial Edge 2026)
-═══════════════════════════════════════════════════════
-
-PERSONAL PROFILE
-─────────────────
-  Age:                     {age} years
-  Years to Retirement:     {years} years (retiring at 60)
-  Annual CTC:              {format_inr(salary)}
-  Basic Salary:            {format_inr(basic_annual)}/year ({basic_pct}% of CTC)
-  Monthly Take-Home (Est): {format_inr(net_take_home)}
-
-ASSUMPTIONS
-───────────
-  Salary Growth:           {salary_growth}% p.a.
-  EPF Rate:                {epf_rate}% p.a.
-  Equity/NPS Return:       {equity_return}% p.a.
-  Inflation:               {inflation}% p.a.
-
-CONTRIBUTION SUMMARY (Monthly)
-──────────────────────────────
-  EPF (Employee 12%):      {format_inr(epf_monthly_employee)}
-  NPS (Employee {nps_pct}%):      {format_inr(nps_monthly_employee)}
-  NPS (Employer {employer_nps_pct}%):     {format_inr(nps_monthly_employer)}
-  WeCare DB (10%):         {format_inr(wecare_monthly_contribution)}
-  Total Deductions:        {format_inr(total_monthly_deduction)}
-
-RETIREMENT PROJECTION AT AGE 60
-────────────────────────────────
-  EPF Corpus:              {format_inr(epf_corpus)}
-  NPS Corpus:              {format_inr(nps_corpus)}
-  WeCare Pension (Monthly):{format_inr(wecare['monthly_pension'])}
-  WeCare Commutation Lump: {format_inr(wecare['commutation_lump_sum'])}
-  WeCare Residual Pension: {format_inr(wecare['residual_monthly_pension'])}/month
-  Total Retirement Wealth: {format_inr(total_wealth)}
-
-REPLACEMENT RATIO
-─────────────────
-  Annual Retirement Income:{format_inr(annual_retirement_income)}
-  Final Annual Salary:     {format_inr(final_annual_salary)}
-  Replacement Ratio:       {replacement_ratio:.1f}%
-  Target (IFoA/OECD):      50-70%
-  Status:                  {"✅ On Track" if replacement_ratio >= 50 else "⚠️ Below Target" if replacement_ratio >= 40 else "❌ Critically Low"}
-
-INFLATION-ADJUSTED REALITY
-──────────────────────────
-  Nominal Wealth at 60:    {format_inr(total_wealth)}
-  Real Wealth (Today's ₹): {format_inr(total_wealth / ((1 + inflation / 100) ** years))}
-
-FINANCIAL HEALTH SCORE
-──────────────────────
-  Score:                   {health_score:.0f} / 100
-  Savings Rate:            {user_savings_rate:.1f}%
-  Peer Percentile:         Top {100 - percentile}%
-
-═══════════════════════════════════════════════════════
-⚠️ DISCLAIMER: This report is for educational purposes 
-only. It does not constitute financial advice. Consult 
-a qualified financial advisor for personal decisions.
-═══════════════════════════════════════════════════════
-"""
+    full_report_text = generate_report_text(
+        age=age,
+        salary=salary,
+        basic_pct=basic_pct,
+        salary_growth=salary_growth,
+        equity_return=equity_return,
+        epf_rate=epf_rate,
+        inflation=inflation,
+        nps_pct=nps_pct,
+        employer_nps_pct=employer_nps_pct,
+        years=years,
+        basic_annual=basic_annual,
+        gross_monthly=gross_monthly,
+        net_take_home=net_take_home,
+        total_monthly_deduction=total_monthly_deduction,
+        epf_monthly_employee=epf_monthly_employee,
+        nps_monthly_employee=nps_monthly_employee,
+        wecare_monthly_contribution=wecare_monthly_contribution,
+        epf_corpus=epf_corpus,
+        nps_corpus=nps_corpus,
+        wecare=wecare,
+        total_wealth=total_wealth,
+        annual_retirement_income=annual_retirement_income,
+        final_annual_salary=final_annual_salary,
+        replacement_ratio=replacement_ratio,
+        health_score=health_score,
+        user_savings_rate=user_savings_rate,
+        percentile=percentile,
+        emi_ratio_val=emi_ratio_val,
+        num_pillars=num_pillars,
+    )
 
     st.download_button(
-        "📄 Download Report (.txt)",
-        report_text,
+        "📄 Download Full Retirement Report (.txt)",
+        full_report_text,
         "retirement_report.txt",
         mime="text/plain",
         type="primary",
